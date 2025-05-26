@@ -1,64 +1,152 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useCallback, useMemo } from "react";
 import * as d3 from "d3";
 import { GraphCanvasProps, Node, Link } from "./GraphCanvas.types";
+import { COLORS, SIMULATION, ZOOM } from "./GraphCanvas.consts";
 
 const GraphCanvas: React.FC<GraphCanvasProps> = ({
   graphData,
   width,
   height,
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
-  const selectedNodeIdRef = useRef<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  const animationFrame = useRef<number | null>(null);
+  const simulationRef = useRef<d3.Simulation<Node, Link> | null>(null);
+
+  const { nodes, links } = useMemo(() => {
+    return {
+      nodes: graphData.nodes.map((n) => ({ ...n })),
+      links: graphData.links.map((l) => ({ ...l })),
+    };
+  }, [graphData]);
+
+  const render = useCallback(() => {
+    const ctx = contextRef.current;
+    if (!ctx) return;
+
+    const { x, y, k } = transformRef.current;
+
+    ctx.save();
+    ctx.clearRect(0, 0, width, height);
+    ctx.translate(x, y);
+    ctx.scale(k, k);
+
+    ctx.beginPath();
+    ctx.strokeStyle = COLORS.LINK;
+    ctx.lineWidth = 1 / k;
+
+    links.forEach((link) => {
+      const source = link.source as unknown as Node;
+      const target = link.target as unknown as Node;
+      if (
+        source.x !== undefined &&
+        source.y !== undefined &&
+        target.x !== undefined &&
+        target.y !== undefined
+      ) {
+        ctx.moveTo(source.x, source.y);
+        ctx.lineTo(target.x, target.y);
+      }
+    });
+    ctx.stroke();
+
+    const selectedId = selectedIdRef.current;
+    nodes.forEach((node) => {
+      if (node.x == null || node.y == null) return;
+
+      const isSelected = node.id === selectedId;
+
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, SIMULATION.NODE_RADIUS, 0, 2 * Math.PI);
+      ctx.fillStyle = isSelected ? COLORS.NODE_SELECTED : COLORS.NODE;
+      ctx.fill();
+
+      ctx.strokeStyle = isSelected ? COLORS.STROKE_SELECTED : COLORS.STROKE;
+      ctx.lineWidth = 1 / k;
+      ctx.stroke();
+    });
+
+    ctx.restore();
+  }, [nodes, links, width, height]);
+
+  const findNodeAt = useCallback(
+    (px: number, py: number): Node | null => {
+      const [mx, my] = transformRef.current.invert([px, py]);
+      return (
+        nodes.find((n) => {
+          if (n.x == null || n.y == null) return false;
+          const dx = mx - n.x;
+          const dy = my - n.y;
+          return dx * dx + dy * dy < SIMULATION.CLICK_RADIUS_SQ;
+        }) ?? null
+      );
+    },
+    [nodes]
+  );
+
+  const handleClick = useCallback(
+    (event: MouseEvent) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      const node = findNodeAt(x, y);
+      const newId = node?.id ?? null;
+
+      if (newId !== selectedIdRef.current) {
+        selectedIdRef.current = newId;
+        render();
+      }
+    },
+    [findNodeAt, render]
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const context = canvas.getContext("2d");
-    if (!context) return;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
 
-    const nodes: Node[] = graphData.nodes.map((n) => ({ ...n }));
-    const links: Link[] = graphData.links.map((l) => ({ ...l }));
+    contextRef.current = ctx;
 
-    const simulation = d3
+    const sim = d3
       .forceSimulation(nodes)
       .force(
         "link",
         d3
           .forceLink<Node, Link>(links)
           .id((d) => d.id)
-          .distance(50)
+          .distance(SIMULATION.LINK_DISTANCE)
       )
-      .force("charge", d3.forceManyBody().strength(-100))
+      .force("charge", d3.forceManyBody().strength(SIMULATION.CHARGE))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .on("tick", render);
+      .on("tick", () => {
+        if (animationFrame.current)
+          cancelAnimationFrame(animationFrame.current);
+        animationFrame.current = requestAnimationFrame(render);
+      });
+
+    simulationRef.current = sim;
 
     const selection = d3.select(canvas);
 
-    // Helper function to find node at position
-    function findNodeAtPosition(x: number, y: number): Node | null {
-      const [mx, my] = transformRef.current.invert([x, y]);
-      return (
-        nodes.find((node) => {
-          const dx = (node.x ?? 0) - mx;
-          const dy = (node.y ?? 0) - my;
-          return dx * dx + dy * dy < 25;
-        }) ?? null
-      );
-    }
-
+    // Zoom
     const zoom = d3
       .zoom<HTMLCanvasElement, unknown>()
-      .scaleExtent([0.1, 5])
+      .scaleExtent([ZOOM.MIN, ZOOM.MAX])
       .filter((event) => {
-        // Only allow zoom/pan if we're not clicking on a node
-        const rect = canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-        const nodeAtPosition = findNodeAtPosition(x, y);
-
-        // If there's a node at this position, don't allow zoom/pan
-        return !nodeAtPosition;
+        if (event.type === "mousedown") {
+          const rect = canvas.getBoundingClientRect();
+          return !findNodeAt(
+            event.clientX - rect.left,
+            event.clientY - rect.top
+          );
+        }
+        return true;
       })
       .on("zoom", (event) => {
         transformRef.current = event.transform;
@@ -69,115 +157,59 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
       .drag<HTMLCanvasElement, unknown>()
       .subject((event) => {
         const rect = canvas.getBoundingClientRect();
-        const x = event.sourceEvent.clientX - rect.left;
-        const y = event.sourceEvent.clientY - rect.top;
-        return findNodeAtPosition(x, y);
+        return findNodeAt(
+          event.sourceEvent.clientX - rect.left,
+          event.sourceEvent.clientY - rect.top
+        );
       })
       .on("start", (event) => {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
+        if (!event.active) sim.alphaTarget(SIMULATION.ALPHA_TARGET).restart();
         const node = event.subject as Node;
-        if (node) {
-          node.fx = node.x;
-          node.fy = node.y;
-        }
+        node.fx = node.x;
+        node.fy = node.y;
       })
       .on("drag", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        const [mx, my] = transformRef.current.invert([
+          event.sourceEvent.clientX - rect.left,
+          event.sourceEvent.clientY - rect.top,
+        ]);
         const node = event.subject as Node;
-        if (node) {
-          const rect = canvas.getBoundingClientRect();
-          const x = event.sourceEvent.clientX - rect.left;
-          const y = event.sourceEvent.clientY - rect.top;
-          const [mx, my] = transformRef.current.invert([x, y]);
-          node.fx = mx;
-          node.fy = my;
-        }
+        node.fx = mx;
+        node.fy = my;
       })
       .on("end", (event) => {
-        if (!event.active) simulation.alphaTarget(0);
+        if (!event.active) sim.alphaTarget(0);
         const node = event.subject as Node;
-        if (node) {
-          node.fx = null;
-          node.fy = null;
-        }
+        node.fx = null;
+        node.fy = null;
       });
 
-    // Apply zoom first, then drag
     selection.call(zoom).call(drag);
-
-    function handleClick(event: MouseEvent) {
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-
-      const clickedNode = findNodeAtPosition(x, y);
-      selectedNodeIdRef.current = clickedNode?.id ?? null;
-      render();
-    }
-
     canvas.addEventListener("click", handleClick);
 
-    function render() {
-      if (!context) return;
-
-      const { x, y, k } = transformRef.current;
-      context.save();
-      context.clearRect(0, 0, width, height);
-      context.translate(x, y);
-      context.scale(k, k);
-
-      // Draw links
-      context.beginPath();
-      context.strokeStyle = "gray";
-      context.lineWidth = 1 / k; // Adjust line width for zoom
-      links.forEach((link) => {
-        const source = link.source as any;
-        const target = link.target as any;
-        if (
-          source.x !== undefined &&
-          source.y !== undefined &&
-          target.x !== undefined &&
-          target.y !== undefined
-        ) {
-          context.moveTo(source.x, source.y);
-          context.lineTo(target.x, target.y);
-        }
-      });
-      context.stroke();
-
-      // Draw nodes
-      nodes.forEach((node) => {
-        if (node.x !== undefined && node.y !== undefined) {
-          context.beginPath();
-          context.arc(node.x, node.y, 5, 0, 2 * Math.PI);
-          context.fillStyle =
-            node.id === selectedNodeIdRef.current ? "red" : "steelblue";
-          context.fill();
-
-          // Add stroke for better visibility
-          context.strokeStyle =
-            node.id === selectedNodeIdRef.current ? "darkred" : "navy";
-          context.lineWidth = 1 / k;
-          context.stroke();
-        }
-      });
-
-      context.restore();
-    }
+    render();
 
     return () => {
-      simulation.stop();
-      selection.on(".zoom", null).on(".drag", null);
+      sim.stop();
+      simulationRef.current = null;
+      if (animationFrame.current) cancelAnimationFrame(animationFrame.current);
       canvas.removeEventListener("click", handleClick);
+      selection.on(".zoom", null).on(".drag", null);
     };
-  }, [graphData, width, height]);
+  }, [nodes, links, width, height, render, findNodeAt, handleClick]);
 
   return (
     <canvas
       ref={canvasRef}
       width={width}
       height={height}
-      style={{ border: "1px solid #ccc", display: "block", cursor: "grab" }}
+      style={{
+        border: "1px solid #ccc",
+        borderRadius: "6px",
+        display: "block",
+        cursor: "grab",
+      }}
     />
   );
 };

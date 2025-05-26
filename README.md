@@ -1,46 +1,85 @@
-# Getting Started with Create React App
+# 🎯 Interactive Force-Directed Graph Visualization
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This project is a React-based interactive graph visualization tool that uses D3.js to render a force-directed layout onto an HTML Canvas. It was built as part of a technical assignment.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 📦 Technologies Used
 
-### `npm start`
+- **React** (with Hooks)
+- **TypeScript** (strongly typed throughout)
+- **D3.js** (force simulation, zoom/pan/drag)
+- **Canvas API** (for performant rendering)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+---
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## 🚀 Features
 
-### `npm test`
+- ⚙️ **Force-directed layout** using D3’s simulation
+- 🖱️ **Zoom and pan** via mouse or touchpad
+- 👆 **Node dragging** with smooth interaction
+- 🎯 **Node selection** with visual highlighting
+- ⚡ **Efficient Canvas rendering**
+- 💡 **Responsive architecture** using `useEffect`, `useRef`, and `useMemo`
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## 📁 Project Structure
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```
+src/
+│
+├── App.tsx                   # Demo app with sample data
+├── GraphCanvas/
+│   ├── GraphCanvas.tsx       # Main canvas rendering logic
+│   ├── GraphCanvas.types.ts  # Graph data types
+│   ├── GraphCanvas.consts.ts # Graph consts
+│   └── index.ts              # Barrel export
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+---
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## 🛠️ Getting Started
 
-### `npm run eject`
+### 1. Clone the repository or unzip the project:
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+```bash
+git clone <your-repo-url>
+cd interactive-graph-visualization
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### 2. Install dependencies:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+```bash
+npm install
+```
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+### 3. Run the development server:
 
-## Learn More
+```bash
+npm start
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Open [http://localhost:3000](http://localhost:3000) in your browser to see the visualization in action.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
+
+## 📊 Sample Graph
+
+- Generates a sample graph of 100 nodes and 100 links on load.
+- You can adjust node/link counts in `App.tsx`
+
+---
+
+## 🧹 Clean Code Practices
+
+- ✅ Fully typed with TypeScript
+- 🧠 React hooks for state and lifecycle
+- 🧼 Structured for readability and maintainability
+- 🧯 Proper cleanup of D3 simulation and event listeners
+
+---
+
+## 🙏 Acknowledgements
+
+Thanks to the reviewers for the opportunity! Feedback is always welcome.
