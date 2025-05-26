@@ -45,7 +45,7 @@ src/
 
 ```bash
 git clone https://github.com/yanblum/Interactive-Force-Directed-Graph-Visualization
-cd interactive-graph-visualization
+cd Interactive-Force-Directed-Graph-Visualization
 ```
 
 ### 2. Install dependencies:
