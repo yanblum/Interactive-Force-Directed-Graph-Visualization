@@ -44,7 +44,7 @@ src/
 ### 1. Clone the repository or unzip the project:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/yanblum/Interactive-Force-Directed-Graph-Visualization
 cd interactive-graph-visualization
 ```
 
